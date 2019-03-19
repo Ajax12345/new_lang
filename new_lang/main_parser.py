@@ -2,8 +2,6 @@ import typing, lang_wrappers
 import collections.abc, lang_exceptions
 import parser_identifiers
 
-
-
 class Scope:
     def __init__(self, scope:str='__main__', is_main:bool=True) -> None:
         self.scope, self.is_main = scope, is_main
@@ -65,13 +63,11 @@ class ParseDenote:
 class _AST_op(parser_Header):
     def start(self) -> None:
         _identifier = next(self.header, None)
-        print(_identifier)
         if _identifier.name not in {'colon', 'dot', 'lparent', 'assign'}:
-            raise lang_exceptions.InvalidSyntax(f"In '{_file}', line {_line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
+            raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
 
     @classmethod
     def get_obj_ast(cls, _start_token, _parser_obj, _header:typing.Iterator, _lines:typing.Iterator, _line_counter:LineCount, _file:str, _current_level:int, scope:Scope) -> typing.Any:
-        #_ = cls.idenifiers[_identifier.value].init_identifier(_parser_obj, _header, _lines, _line_counter, _file, _current_level, scope)        
         _main_execute = cls(_start_token, _parser_obj, _header, _lines, _line_counter, _file, _current_level, scope)
         _main_execute.start()
         return 
