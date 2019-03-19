@@ -1,8 +1,18 @@
 import typing, lang_wrappers
 import collections.abc, lang_exceptions
-import itertools
+import parser_identifiers
 
-class _line_count:
+
+
+class Scope:
+    def __init__(self, scope:str='__main__', is_main:bool=True) -> None:
+        self.scope, self.is_main = scope, is_main
+
+class Identifier:
+    def __init__(self, *args) -> None:
+        self.parser_obj, self.header, self.lines, self.line_counter, self.file, self.current_level, self.scope = args
+
+class LineCount:
     def __init__(self, _start:int = 1) -> None:
         self._starting = _start
     @property
@@ -11,34 +21,61 @@ class _line_count:
     def __next__(self):
         self._starting += 1
 
-class Parser:
-    def __init__(self, _file, _whitespace:int = 0, _line_count = 1) -> None:
-        self.file, self.level, self.line_count = _file, _whitespace, _line_count(_line_count)
+class _func(Identifier):
+    @classmethod
+    def init_identifier(cls, parser_obj, _header:typing.Iterator, _lines:typing.Iterator, _line_counter:LineCount, _file:str, _current_level:int, scope:Scope) -> typing.Any:
+        pass
 
+class ParseDenote:
+    idenifiers = {'func':_func}
+    @classmethod
+    def get_obj_ast(cls, _parser_obj, _header:typing.Iterator, _lines:typing.Iterator, _line_counter:LineCount, _file:str, _current_level:int, scope:Scope) -> typing.Any:
+        _identifier = next(_header, None)
+        if _identifier is None:
+            raise lang_exceptions.InvalidSyntax(f"In '{_file}', line {_line_counter.line_number}:\nInvalid Syntax Error: expected identifier name")
+        if _identifier.value not in cls.idenifiers:
+            raise lang_exceptions.InvalidIdentifier(f"In '{_file}', line {_line_counter.line_number}:\nInvalid Indentifier: '{_identifier.value}'")
+        _ = cls.idenifiers[_identifier.value].init_identifier(_parser_obj, _header, _lines, _line_counter, _file, _current_level+4, scope)        
+
+
+
+
+class Parser:
+    def __init__(self, _file:str, scope:Scope, _whitespace:int = 0, _line_count = 1) -> None:
+        self.file, self.level, self.line_count = _file, _whitespace, LineCount(_line_count)
+        self.scope = scope
+        self.token_matcher = {'at':ParseDenote}
     @property
     def stream(self) -> typing.Iterator:
         return self._stream
     @stream.setter
-    @lang_wrappers.is_iterator
     def stream(self, _full_stream) -> None:
-        return self._stream = _full_stream
+        self._stream = _full_stream
     def __next__(self):
         return next(self.stream, None)
 
     def start(self) -> None:
-        _start = next(self)
+        _start = next(self, None)
         while _start is not None:
             _t, *_trailing = _start
             if self.level and not _t.is_space or _t.is_space and self.level != len(_t):
                 raise lang_exceptions.IndentationError(f"In '{self.file}', line {self.line_count.line_number}:\nIndentationError: expected {self.level}, got {len(_t)}")
-            _start = next(self)
+            _trailing = iter(_trailing)
+            if _t.is_space:
+                _t, *_trailing = _trailing
+                _trailing = iter(_trailing)
+            if _t.token_type not in self.token_matcher:
+               raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_count.line_number}:\nInvalid Syntax: invalid identifier '{_t.value}'") 
+            _ = self.token_matcher[_t.token_type].get_obj_ast(self.__class__, _trailing, self.stream, self.line_count, self.file, self.level, self.scope)
+
+            _start = next(self, None)
             next(self.line_count)
 
     @classmethod
-    def load_tokens(cls, _file:str, _tokens:typing.Iterator, _indent:int=4, _line:int=1, _start:bool = True) -> None:
+    def load_tokens(cls, _file:str, _tokens:typing.Iterator, _indent:int=0, _line:int=1, _start:bool = True, scope='__main__') -> None:
         if not isinstance(_tokens, collections.abc.Iterator):
-            raise TypeError(f"'{_f.__name__}' requires an iterator, got {type(_iter).__name__}")
-        _parser = cls(_file, _whitespace = _indent, _line_count = _line)
+            raise TypeError(f"'load_tokens' requires an iterator, got {type(_tokens).__name__}")
+        _parser = cls(_file, Scope(scope=scope, is_main = scope == '__main__'), _whitespace = _indent, _line_count = _line)
         _parser.stream = _tokens
         if _start:
             _parser.start()
