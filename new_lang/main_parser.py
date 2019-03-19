@@ -2,6 +2,8 @@ import typing, lang_wrappers
 import collections.abc, lang_exceptions
 import parser_identifiers
 
+
+
 class Scope:
     def __init__(self, scope:str='__main__', is_main:bool=True) -> None:
         self.scope, self.is_main = scope, is_main
@@ -61,11 +63,36 @@ class ParseDenote:
 
 
 class _AST_op(parser_Header):
+    def attr_lookup(self, _c):
+        while _c.name == 'dot':
+            _attr = next(self.header, None)
+            if _attr is None:
+                raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: unexpected termination of expression")
+            if _attr.name != 'name':
+                raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '{attr.value}'")
+            yield _attr.value
+            _c = next(self.header, None)
+        if _c is not None:
+            self.header = iter([_c, *self.header])
+        
     def start(self) -> None:
-        _identifier = next(self.header, None)
+        _identifier, path = next(self.header, None), None
         if _identifier.name not in {'colon', 'dot', 'lparent', 'assign'}:
             raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
+        if _identifier.name == 'dot':
+            _path = list(self.attr_lookup(_identifier))
+        
+        _expect_next = next(self.header, None)
+        if _expect_next is None:
+            #build AST with just _path
+        elif _expect_next.name == 'assign':
+            #build get trailing AST
+        elif _expect_next.name == 'colon':
+            #build AST to =
+        else:
+            raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
 
+    
     @classmethod
     def get_obj_ast(cls, _start_token, _parser_obj, _header:typing.Iterator, _lines:typing.Iterator, _line_counter:LineCount, _file:str, _current_level:int, scope:Scope) -> typing.Any:
         _main_execute = cls(_start_token, _parser_obj, _header, _lines, _line_counter, _file, _current_level, scope)
