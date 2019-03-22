@@ -106,31 +106,30 @@ class AST:
                     _queue.append(NameLookup(_new_queue))
                     _queue.append(OperatorObj(_check_next))
                 elif _check_next.name in {'dot', 'lparen'}:
-                    while _check_next.name in {'dot', 'lparen'}:
-                        if _check_next.name == 'dot':
-                            _new_queue.extend(list(self.attr_lookup(_check_next)))
-                            _queue.append(NameLookup(_new_queue))
-                            #self.header = iter([_second_check_next, *self.header])
+                    if _check_next.name == 'dot':
+                        _new_queue.extend(list(self.attr_lookup(_check_next)))
+                        _queue.append(NameLookup(_new_queue))
+                        #self.header = iter([_second_check_next, *self.header])
                             
-                        else:
-                            _signature = []
-                            while True:
-                                _param, end, _ending_token = self.__class__.create_ast(self.from_source, _delimeter={'comma', 'rparen'})
-                                print('testing here sig', _param, end, _ending_token)
-                                if _param:
-                                    _signature.append(_param)
-                                if _ending_token is None or _ending_token.name == 'rparen':
-                                    break
-                            _queue.append(NameLookup(_new_queue))
-                            _queue.append(Signature(_signature))
-                        _check_next = next(self.header, None)
-                        if _check_next is None:
-                            break
-                    print('after main loop', _check_next) 
+                    else:
+                        _signature = []
+                        while True:
+                            _param, end, _ending_token = self.__class__.create_ast(self.from_source, _delimeter={'comma', 'rparen'})
+                            print('testing here sig', _param, end, _ending_token)
+                            if _param:
+                                _signature.append(_param)
+                            if _ending_token is None or _ending_token.name == 'rparen':
+                                break
+                        _queue.append(NameLookup(_new_queue))
+                        _queue.append(Signature(_signature))
+                    _check_next = next(self.header, None)
+                    if _check_next is None:
+                        break
+                
                     self.header = iter([_check_next, *self.header])
                 elif _check_next.name == 'rparen':
                     _queue.append(NameLookup(_new_queue))
-                    if _check_next.name in self.delimeter:
+                    if self.delimeter and _check_next.name in self.delimeter:
                         return _queue, self.delimeter, _check_next
                     _queue.append(RParen())
                    
