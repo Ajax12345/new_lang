@@ -1,6 +1,7 @@
 import typing, lang_wrappers
 import collections.abc, lang_exceptions
-import parser_identifiers
+import parser_identifiers, ast_creator
+import lang_utility_objs
 
 
 
@@ -8,9 +9,16 @@ class Scope:
     def __init__(self, scope:str='__main__', is_main:bool=True) -> None:
         self.scope, self.is_main = scope, is_main
 
+class _from_dict:
+    def __init__(self, _attrs:dict) -> None:
+        self.__dict__ = _attrs
+
 class parser_Header:
     def __init__(self, *args) -> None:
         self.start_token, self.parser_obj, self.header, self.lines, self.line_counter, self.file, self.current_level, self.scope = args
+    @property
+    def reverse_op(self):
+        return _from_dict(self.__dict__)
 
 class LineCount:
     def __init__(self, _start:int = 1) -> None:
@@ -68,7 +76,7 @@ class _AST_op(parser_Header):
             _attr = next(self.header, None)
             if _attr is None:
                 raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: unexpected termination of expression")
-            if _attr.name != 'name':
+            if _attr.name != 'variable':
                 raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '{attr.value}'")
             yield _attr.value
             _c = next(self.header, None)
@@ -76,19 +84,33 @@ class _AST_op(parser_Header):
             self.header = iter([_c, *self.header])
         
     def start(self) -> None:
+        """
+        todo: add support for in-place value mutations
+        """
         _identifier, path = next(self.header, None), None
         if _identifier.name not in {'colon', 'dot', 'lparent', 'assign'}:
             raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
         if _identifier.name == 'dot':
             _path = list(self.attr_lookup(_identifier))
         
-        _expect_next = next(self.header, None)
-        if _expect_next is None:
-            #build AST with just _path
-        elif _expect_next.name == 'assign':
-            #build get trailing AST
-        elif _expect_next.name == 'colon':
+        elif _identifier.name == 'assign':
+            _full_ast, *_ = ast_creator.AST.create_ast(self.reverse_op, lang_utility_objs.ast_delimeters())
+            if not _full_ast:
+                raise lang_exceptions.InvalidAssigmentTermination(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Termination of Assignment: Expecting valid type")
+            print(_full_ast)
+            print('---'*10)
+            def to_dict(_ast):
+                return _ast if _ast.name == 'running_name' else {'op':_ast.op, 'left':to_dict(_ast.left), 'right':to_dict(_ast.right)}
+            print(to_dict(_full_ast))            
+            '''
+            print('-----')
+            for i in _full_ast:
+                print(i)
+                print('-----')
+            '''
+        elif _identifier.name == 'colon':
             #build AST to =
+            pass
         else:
             raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: invalid syntax with name '{_identifier.value}'")
 
