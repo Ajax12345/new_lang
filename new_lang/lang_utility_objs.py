@@ -25,7 +25,7 @@ class RunningNames:
     def __getattr__(self, _name):
         return getattr(self.from_loop, _name)
     def push(self, _name_action) -> None:
-        if _name_action.ast_type == 'trailing_name_lookup' and not self.names or (self.names and self.names[-1].ast_type != 'signature'):
+        if _name_action.ast_type == 'trailing_name_lookup' and (not self.names or (self.names and self.names[-1].ast_type != 'signature')):
             raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '.'")
         self.names.append(_name_action)
     def __repr__(self) -> str:
