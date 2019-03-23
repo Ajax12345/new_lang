@@ -114,11 +114,11 @@ class FullAst:
 def generate_ast(_execute=False) -> typing.Callable:  
     def _generate(_f:typing.Callable) -> typing.Callable:
         def _wrapper(cls, from_loop, *args, **kwargs) -> typing.Any:
-            result, *_ = _f(cls, from_loop, *args, **kwargs)
+            result, delim, end = _f(cls, from_loop, *args, **kwargs)
             if not _execute:
-                return result
+                return result, delim, end
             FullAst.from_loop = from_loop
-            return FullAst.generate_ast(iter(result))
+            return FullAst.generate_ast(iter(result)), delim, end
         return _wrapper
     return _generate
 
