@@ -1,5 +1,5 @@
 import lang_exceptions, typing
-
+import lang_utility_objs
 
 class NameObj:
     def __init__(self, _token) -> None:
@@ -75,11 +75,60 @@ class TypeObj:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.token})'
 
+class TrailingNameLookup(NameLookup):
+    @property 
+    def ast_type(self):
+        return 'trailing_name_lookup'
+
+
+class FullAst:
+    from_loop = None
+    @classmethod
+    def generate_ast(cls, _stream:typing.Iterator, _ast = None) -> typing.Any:
+        if _ast is None:
+            _ast = lang_utility_objs.RunningNames(cls.from_loop)
+            '''
+            if not _ast:
+                raise lang_exceptions.InvalidSyntax(f"In '{cls.from_loop.file}', line {cls.from_loop.line_counter.line_number}:\nInvalid Syntax: ")
+            '''
+        _start = next(_stream, None)
+        if _start is None:
+            return _ast
+        if _start in _ast:
+            while _start and _start in _ast:
+                _ast.push(_start)
+                _start = next(_stream, None)
+            _stream = iter([_start, *_stream])
+            return cls.generate_ast(_stream, _ast = _ast)
+        if _start.name in {'mul', 'div'}: 
+            new_ast = lang_utility_objs.RunningNames(cls.from_loop)
+            _new_check = next(_stream, None)
+            while _new_check and _new_check in new_ast:
+                new_ast.push(_new_check)
+                _new_check = next(_stream, None)
+            _stream = iter([_new_check, *_stream])
+            return cls.generate_ast(_stream, lang_utility_objs.Operation(_ast, _start, new_ast))
+        return lang_utility_objs.Operation(_ast, _start, cls.generate_ast(_stream, _ast = None))
+            
+
+def generate_ast(_execute=False) -> typing.Callable:  
+    def _generate(_f:typing.Callable) -> typing.Callable:
+        def _wrapper(cls, from_loop, *args, **kwargs) -> typing.Any:
+            result, *_ = _f(cls, from_loop, *args, **kwargs)
+            if not _execute:
+                return result
+            FullAst.from_loop = from_loop
+            return FullAst.generate_ast(iter(result))
+        return _wrapper
+    return _generate
+
+
 class AST:
-    def __init__(self, _from_loop, _delimeter = None) -> None:
-        self.__dict__ = {**_from_loop.__dict__, 'delimeter':_delimeter, 'from_source':_from_loop}
+    def __init__(self, _from_loop, _delimeter:lang_utility_objs.ast_delimeters) -> None:
+        self.__dict__ = _from_loop.__dict__
+        self.delimeter, self.from_source =_delimeter, _from_loop
     def attr_lookup(self, _c):
-        while _c.name == 'dot':
+        while _c and _c.name == 'dot':
             _attr = next(self.header, None)
             if _attr is None:
                 raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: unexpected termination of expression")
@@ -95,64 +144,33 @@ class AST:
 
     def start(self) -> None:
         _start, _queue = next(self.header, None), []
-        while _start is not None and (True if self.delimeter is None else _start.name not in self.delimeter):
-            if _start.token_type in {'name', 'boolean', 'value'}:
-                _new_queue = [_start]
-                _check_next = next(self.header, None)
-                if _check_next is None:
-                    _queue.append(NameLookup(_new_queue))
-                    break
-                if _check_next.token_type in {'operator'}:
-                    _queue.append(NameLookup(_new_queue))
-                    _queue.append(OperatorObj(_check_next))
-                elif _check_next.name in {'dot', 'lparen'}:
-                    if _check_next.name == 'dot':
-                        _new_queue.extend(list(self.attr_lookup(_check_next)))
-                        _queue.append(NameLookup(_new_queue))
-                        #self.header = iter([_second_check_next, *self.header])
-                            
-                    else:
-                        _signature = []
-                        while True:
-                            _param, end, _ending_token = self.__class__.create_ast(self.from_source, _delimeter={'comma', 'rparen'})
-                            print('testing here sig', _param, end, _ending_token)
-                            if _param:
-                                _signature.append(_param)
-                            if _ending_token is None or _ending_token.name == 'rparen':
-                                break
-                        _queue.append(NameLookup(_new_queue))
-                        _queue.append(Signature(_signature))
-                    _check_next = next(self.header, None)
-                    if _check_next is None:
-                        break
-                
-                    self.header = iter([_check_next, *self.header])
-                elif _check_next.name == 'rparen':
-                    _queue.append(NameLookup(_new_queue))
-                    if self.delimeter and _check_next.name in self.delimeter:
-                        return _queue, self.delimeter, _check_next
-                    _queue.append(RParen())
-                   
-                elif _check_next.name in self.delimeter:
-                    _queue.append(NameLookup(_new_queue))
-                    return _queue, self.delimeter, _check_next
-                else:
-                    raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '{_check_next.value}'")
-
+        while _start is not None and _start.name not in self.delimeter:
+            if _start.token_type in {'name', 'boolean', 'value', 'lang_type'}:
+                _queue.append(NameLookup([_start, *self.attr_lookup(next(self.header, None))]))
             elif _start.token_type in {'operator'}:
-                
                 _queue.append(OperatorObj(_start))
             elif _start.name == 'lparen':
-                _queue.append(LParen())
-            elif _start.name == 'rparen':
-                _queue.append(RParen())
-            else:
-                raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '{_start.value}'")
+                _signature = []
+                while True:
+                    _param, end, _ending_token = self.__class__.create_ast(self.from_source, lang_utility_objs.ast_delimeters('comma', 'rparen'))
+                    if _param:
+                        _signature.append(_param)
+                    if _ending_token is None or _ending_token.name == 'rparen':
+                        break
+                _queue.append(Signature(_signature))
+            elif _start.name == 'dot':
+                _lookup = list(self.attr_lookup(_start))
+                if not _lookup:
+                    raise lang_exceptions.InvalidSyntax(f"In '{self.file}', line {self.line_counter.line_number}:\nInvalid Syntax: '{_start.value}'")
+                _queue.append(TrailingNameLookup(_lookup))
             _start = next(self.header, None)
         return _queue, self.delimeter, _start      
 
     @classmethod
-    def create_ast(cls, _from_loop, _delimeter = None) -> typing.Any:
-        _ast = cls(_from_loop, _delimeter = _delimeter)
+    @generate_ast(True)
+    def create_ast(cls, _from_loop, _delimeter:lang_utility_objs.ast_delimeters) -> typing.Any:
+        _ast = cls(_from_loop, _delimeter)
         return _ast.start()
+
+    
   
