@@ -43,4 +43,21 @@ class Operation:
         return False
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.left}, {self.op.value}, {self.right})'
-    
+
+class NameAction:
+    def __init__(self, _name_listing:list, _type, _action, _ast) -> None:
+        self._name_listing, self.var_type, self.action, self.ast = _name_listing, _type, _action, _ast
+    def __call__(self, _namespace:dict) -> typing.Any:
+        """To run the ast"""
+        pass
+    def __repr__(self) -> str:
+        return f"\n@name: {[i.value for i in self._name_listing]}\n@type: {self.var_type}\n@action: {self.action.value}\n@ast: {self.ast}"
+
+class InPlaceAction:
+    def __init__(self, _name_listing:list, _action) -> None:
+        self.name_listing, self.action = _name_listing, _action
+    def __call__(self, _namespace:dict) -> typing.Any:
+        """To run the ast"""
+        pass
+    def __repr__(self) -> str:
+        return f"\n@name: {[i.value for i in self.name_listing]}\n@action: {self.action.value}"
